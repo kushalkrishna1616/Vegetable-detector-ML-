@@ -57,6 +57,12 @@ function App() {
         </div>
 
         <div className="stat-card">
+          <div className="stat-label">Neural Engine</div>
+          <div className="stat-value" style={{ fontSize: '1.2rem' }}>Hybrid v3.0</div>
+          <div className="stat-label">COCO + OIV7 Active</div>
+        </div>
+
+        <div className="stat-card">
           <div className="stat-label">AI Nutrition Insight</div>
           <div style={{ fontSize: '0.85rem', color: 'var(--color-gold)', marginTop: '0.5rem', fontStyle: 'italic' }}>
             "{dynamicInsight}"
