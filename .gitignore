@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+
+# Node
+node_modules/
+dist/
+dashboard/node_modules/
+dashboard/dist/
+
+# System
+.DS_Store
+Thumbs.db
+*.log
+
+# Large Binaries (Optional to ignore if using LFS, but these are small enough)
+# yolov8*.pt
+sharable.zip
+
+# Environment
+.env
+.flaskenv
