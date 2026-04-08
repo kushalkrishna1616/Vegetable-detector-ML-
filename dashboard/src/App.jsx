@@ -3,30 +3,32 @@ import './index.css';
 
 function App() {
   const [items, setItems] = useState([
-    { name: 'Red Onion', price: '$2.50', time: '12:45:01' },
-    { name: 'Fresh Basil', price: '$1.80', time: '12:44:12' },
-    { name: 'Bell Pepper', price: '$0.90', time: '12:43:55' },
+    { name: 'Red Onion', price: '₹35', time: '12:45:01' },
+    { name: 'Fresh Basil', price: '₹20', time: '12:44:12' },
+    { name: 'Bell Pepper', price: '₹60', time: '12:43:55' },
   ]);
 
-  const [revenue, setRevenue] = useState(128.50);
-  const [itemsCount, setItemsCount] = useState(42);
-  const [tipIndex, setTipIndex] = useState(0);
+  const [revenue, setRevenue] = useState(1280.50);
+  const [itemsCount, setItemsCount] = useState(12);
+  const [currentDetection, setCurrentDetection] = useState("Scanning...");
+  const [dynamicInsight, setDynamicInsight] = useState("Place a fruit or vegetable in front of the camera.");
 
-  const tips = [
-    "Spinach is rich in Iron and Vitamins A, C, and K.",
-    "Carrots are excellent for eye health due to Beta-carotene.",
-    "Tomatoes contain Lycopene, a powerful antioxidant.",
-    "Broccoli is a great source of Vitamin K and Calcium.",
-    "Apples help regulate blood sugar with their high fiber."
-  ];
-
-  // Mocking real-time updates for the "WOW" factor
+  // Fetch real-time status from Flask
   useEffect(() => {
-    const interval = setInterval(() => {
-      setTipIndex(prev => (prev + 1) % tips.length);
-    }, 5000);
+    const interval = setInterval(async () => {
+      try {
+        const response = await fetch('http://localhost:5000/status');
+        const data = await response.json();
+        if (data.last_item && data.last_item !== "None") {
+          setCurrentDetection(data.last_item);
+          setDynamicInsight(data.last_insight);
+        }
+      } catch (err) {
+        console.error("Vision Engine Offline");
+      }
+    }, 1000);
     return () => clearInterval(interval);
-  }, [tips.length]);
+  }, []);
 
   return (
     <div className="app-container">
@@ -44,20 +46,20 @@ function App() {
         
         <div className="stat-card">
           <div className="stat-label">Daily Revenue</div>
-          <div className="stat-value" style={{ color: 'var(--color-gold-bright)' }}>${revenue.toFixed(2)}</div>
+          <div className="stat-value" style={{ color: 'var(--color-gold-bright)' }}>₹{revenue.toFixed(2)}</div>
           <div className="stat-label" style={{ color: 'var(--color-accent)' }}>+12% vs Yesterday</div>
         </div>
 
         <div className="stat-card">
-          <div className="stat-label">Objects Detected</div>
-          <div className="stat-value">{itemsCount}</div>
-          <div className="stat-label">Active Scanning...</div>
+          <div className="stat-label">Active Detection</div>
+          <div className="stat-value">{currentDetection}</div>
+          <div className="stat-label">Tracking...</div>
         </div>
 
         <div className="stat-card">
           <div className="stat-label">AI Nutrition Insight</div>
           <div style={{ fontSize: '0.85rem', color: 'var(--color-gold)', marginTop: '0.5rem', fontStyle: 'italic' }}>
-            "{tips[tipIndex]}"
+            "{dynamicInsight}"
           </div>
         </div>
       </aside>
@@ -66,10 +68,10 @@ function App() {
       <main className="feed-container">
         <div className="feed-overlay">
           <div style={{ position: 'absolute', top: '20px', left: '20px', fontSize: '0.8rem', color: 'rgba(255,255,255,0.4)' }}>
-            CAM_01 / REALTIME_ANALYSIS / HD_720P
+            CAM_01 / REALTIME_ANALYSIS / 480P_OPTIMIZED
           </div>
           <div style={{ position: 'absolute', bottom: '20px', right: '20px', color: 'var(--color-gold)' }}>
-            [ SCANNING_FOR_VEGETABLES ]
+            [ FRUIT & VEG ONLY ]
           </div>
         </div>
         
@@ -88,15 +90,15 @@ function App() {
         <div style={{ width: '100%', height: '100%', display: 'none', alignItems: 'center', justifyContent: 'center', background: '#080808' }}>
           <div style={{ textAlign: 'center', color: 'rgba(210, 180, 140, 0.4)' }}>
             <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>👁️</div>
-            <div>CONNECT TO PYTHON ENGINE</div>
-            <div style={{ fontSize: '0.7rem', marginTop: '10px' }}>RUN `py streaming_server.py` TO START FEED</div>
+            <div>CONNECT TO VISION ENGINE</div>
+            <div style={{ fontSize: '0.7rem', marginTop: '10px' }}>RUN `py streaming_server.py`</div>
           </div>
         </div>
       </main>
 
       {/* Right Sidebar: History / Inventory */}
       <aside className="inventory-panel">
-        <h3>Detection History</h3>
+        <h3>Recent Detections</h3>
         <div className="history-list">
           {items.map((item, idx) => (
             <div className="item-row" key={idx}>
@@ -122,7 +124,7 @@ function App() {
           textTransform: 'uppercase',
           letterSpacing: '1px'
         }}>
-          Finalize Checkout
+          Process Bill (INR)
         </button>
       </aside>
     </div>
