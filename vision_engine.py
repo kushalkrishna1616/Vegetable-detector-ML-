@@ -31,8 +31,16 @@ OBJECT_DATA = {
     "mushroom": {"type": "vegetable", "calories": "22 kcal", "color": "White/Brown", "price": "₹50/pkt", "insight": "A great source of B vitamins and selenium."},
     "pumpkin": {"type": "vegetable", "calories": "26 kcal", "color": "Orange", "price": "₹40/kg", "insight": "Rich in beta-carotene and antioxidants."},
     
-    # Extra fallback
-    "cauliflower": {"type": "vegetable", "calories": "25 kcal", "color": "White", "price": "₹40/pc", "insight": "High in fiber and Vitamin C."},
+    # New detections from user gallery
+    "kiwi": {"type": "fruit", "calories": "61 kcal", "color": "Brown/Green", "price": "₹150/kg", "insight": "Full of Vitamin C and dietary fiber."},
+    "papaya": {"type": "fruit", "calories": "43 kcal", "color": "Orange", "price": "₹50/kg", "insight": "Great for digestion and high in Vitamin A."},
+    "pineapple": {"type": "fruit", "calories": "50 kcal", "color": "Yellow/Brown", "price": "₹80/pc", "insight": "Contains bromelain, which aids digestion."},
+    "blackgrapes": {"type": "fruit", "calories": "67 kcal", "color": "Black/Purple", "price": "₹140/kg", "insight": "Rich in antioxidants and great for heart health."},
+    "green_grapes": {"type": "fruit", "calories": "69 kcal", "color": "Green", "price": "₹120/kg", "insight": "Refreshing and good for hydration and energy."},
+    
+    # Generic fallbacks
+    "fruit": {"type": "fruit", "calories": "Varies", "color": "Natural", "price": "₹50-200/kg", "insight": "Fresh fruit detected! Great for a healthy diet."},
+    "vegetable": {"type": "vegetable", "calories": "Varies", "color": "Green", "price": "₹30-100/kg", "insight": "Fresh vegetable detected! Natural and healthy."},
 }
 
 class VisualMemoryEngine:
@@ -55,7 +63,7 @@ class VisualMemoryEngine:
                 if img is not None:
                     # Use color histogram as a visual signature
                     hist = cv2.calcHist([cv2.cvtColor(img, cv2.COLOR_BGR2HSV)], [0, 1], None, [180, 256], [0, 180, 0, 256])
-                    cv2.normalize(hist, hist, 0, 1, cv2.NORM_MINMAX)
+                    cv2.normalize(hist, hist, 1, 0, cv2.NORM_L1)
                     # Name is filename without extension
                     name = os.path.splitext(file)[0].lower()
                     self.memory[name] = hist
@@ -65,27 +73,37 @@ class VisualMemoryEngine:
         if not self.memory: return None
         hsv_crop = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
         crop_hist = cv2.calcHist([hsv_crop], [0, 1], None, [180, 256], [0, 180, 0, 256])
-        cv2.normalize(crop_hist, crop_hist, 0, 1, cv2.NORM_MINMAX)
+        cv2.normalize(crop_hist, crop_hist, 1, 0, cv2.NORM_L1)
 
         best_score = 0
         best_match = None
 
         for name, sig_hist in self.memory.items():
-            score = cv2.compareHist(crop_hist, sig_hist, cv2.HISTCMP_CORREL)
-            if score > best_score:
-                best_score = score
+            # Using Correlation AND Intersection for better accuracy
+            score_correl = cv2.compareHist(crop_hist, sig_hist, cv2.HISTCMP_CORREL)
+            score_intersect = cv2.compareHist(crop_hist, sig_hist, cv2.HISTCMP_INTERSECT)
+            
+            # Combine scores (Correlation is sensitive to shape of distro, Intersect to overlap)
+            combined_score = (score_correl + score_intersect) / 2
+            
+            if combined_score > best_score:
+                best_score = combined_score
                 best_match = name
 
-        return best_match if best_score > 0.85 else None
+        return best_match if best_score > 0.80 else None
 
 class AdvancedVisionEngine:
-    def __init__(self, model_path="yolov8n-oiv7.pt"): 
+    def __init__(self, model_path="yolov8s-oiv7.pt"): 
         print(f"[SYSTEM] Initializing Vision Engine...")
         self.model = YOLO(model_path)
         self.visual_memory = VisualMemoryEngine()
         self.last_item = "None"
         self.last_insight = "Ready to scan items."
         self.last_data = {}
+        self.knowledge_base = {name: 1 for name in self.visual_memory.memory.keys()}
+        self.whitelist = {"apple", "banana", "broccoli", "cabbage", "carrot", "cucumber", "grape", "mango", 
+                         "mushroom", "orange", "peach", "pear", "pomegranate", "potato", "pumpkin", 
+                         "strawberry", "tomato", "zucchini", "fruit", "vegetable", "watermelon", "pineapple", "kiwi", "papaya", "food"}
 
     def get_item_data(self, name):
         return OBJECT_DATA.get(name.lower(), {
@@ -97,40 +115,69 @@ class AdvancedVisionEngine:
         })
 
     def process_frame(self, frame):
-        # Sensitive mode for diverse environments
-        results = self.model(frame, stream=True, conf=0.15, imgsz=640, verbose=False)
+        # 1. Enhance frame (Glare removal + Sharpening)
+        lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
+        l, a, b = cv2.split(lab)
+        clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8,8))
+        cl = clahe.apply(l)
+        enhanced_frame = cv2.merge((cl,a,b))
+        enhanced_frame = cv2.cvtColor(enhanced_frame, cv2.COLOR_LAB2BGR)
+        kernel = np.array([[-1,-1,-1], [-1,9,-1], [-1,-1,-1]])
+        enhanced_frame = cv2.filter2D(enhanced_frame, -1, kernel)
+
+        # 2. High-precision Small model (conf boosted)
+        results = self.model(enhanced_frame, stream=True, conf=0.15, imgsz=640, verbose=False)
         detected_any = False
-        
+        candidates = []
+
+        # Classes to explicitly ignore
+        IGNORE_CLASSES = {"person", "man", "woman", "human", "face", "boy", "girl"}
+
         for res in results:
             for box in res.boxes:
                 x1, y1, x2, y2 = map(int, box.xyxy[0])
+                conf = float(box.conf[0])
                 cls_name = self.model.names[int(box.cls[0])].lower()
                 
-                # Check visual memory first (User's folder)
-                crop = frame[max(0,y1):min(y2,480), max(0,x1):min(x2,640)]
+                # CRITICAL: If the AI thinks it's a person/face, Skip it!
+                if cls_name in IGNORE_CLASSES:
+                    continue
+                
+                if cls_name in ["goldfish", "gold fish"]: cls_name = "carrot"
+
+                # Check visual memory match
+                crop = enhanced_frame[max(0,y1):min(y2,480), max(0,x1):min(x2,640)]
                 memory_match = self.visual_memory.find_match(crop) if crop.size > 0 else None
                 
+                # We only trust memory match if it's high quality (0.80+)
                 final_name = memory_match if memory_match else cls_name
                 
-                # STRICT GOAL MODE: Only show if it's a fruit/veg or memory match
-                is_known = final_name.lower() in OBJECT_DATA or memory_match
-                
-                if is_known:
-                    data = self.get_item_data(final_name)
-                    box_color = (0, 255, 0) # Clear Green
-                    
-                    cv2.rectangle(frame, (x1, y1), (x2, y2), box_color, 2)
-                    label = f"{final_name.upper()}"
-                    cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, box_color, 2)
-                    
-                    self.last_item = final_name.capitalize()
-                    self.last_insight = data.get("insight")
-                    self.last_data = data
-                    detected_any = True
+                # Selection logic:
+                if memory_match:
+                    candidates.append((x1, y1, x2, y2, final_name, conf + 1.0)) # Massive boost for gallery matches
+                elif cls_name in self.whitelist:
+                    candidates.append((x1, y1, x2, y2, final_name, conf))
+
+        candidates.sort(key=lambda x: x[5], reverse=True) 
+        
+        seen_names = set()
+        for x1, y1, x2, y2, name, c in candidates:
+            if name in seen_names or name == "none": continue
+            data = self.get_item_data(name)
+            
+            box_color = (0, 255, 0)
+            cv2.rectangle(frame, (x1, y1), (x2, y2), box_color, 2)
+            cv2.putText(frame, name.upper(), (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, box_color, 2)
+            
+            self.last_item, self.last_insight, self.last_data, detected_any = name.capitalize(), data.get("insight"), data, True
+            seen_names.add(name)
+            # Removed 'break' to allow multiple detections (Carrot + Orange etc)
 
         if not detected_any:
             self.last_item = "None"
             self.last_insight = "Scanning items..."
+        
+        return frame
             
         # HUD Overlay (Minimalist)
         cv2.rectangle(frame, (0, 0), (640, 40), (30, 30, 30), -1)
