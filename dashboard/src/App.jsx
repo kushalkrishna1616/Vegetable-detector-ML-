@@ -11,6 +11,7 @@ function App() {
   const [items, setItems] = useState([]);
   const [revenue, setRevenue] = useState(0);
   const [currentDetection, setCurrentDetection] = useState(null);
+  const [details, setDetails] = useState({});
   const [dynamicInsight, setDynamicInsight] = useState("Ready to explore!");
   const [itemDetails, setItemDetails] = useState({});
   const [isSuccess, setIsSuccess] = useState(false);
@@ -111,9 +112,9 @@ function App() {
     setRevenue(newTotal);
   };
 
-  // Modified Auto-log for checkout mode
+  // Modified Auto-log for both modes
   useEffect(() => {
-    if (view !== 'dashboard' || mode !== 'checkout') return;
+    if (view !== 'dashboard') return;
 
     const interval = setInterval(async () => {
       try {
@@ -123,15 +124,15 @@ function App() {
         if (data.last_item && data.last_item !== "None") {
           setCurrentDetection(data.last_item);
           setDynamicInsight(data.last_insight);
-          setItemDetails(data);
+          setDetails(data); // Using the existing state
 
-          // Only add if it's not already the most recent item (prevents duplicates)
+          // Only add if it's not already the most recent item 
           if (data.last_item !== items[0]?.name) {
-            const unitPriceVal = parseInt(data.price.replace('₹', '').split('/')[0]);
+            const unitPriceVal = parseInt(data.price?.replace('₹', '').split('/')[0]) || 50;
             const newItem = {
               name: data.last_item,
-              unitPrice: data.price,
-              weight: 1, // Default to 1kg or 1pc
+              unitPrice: data.price || "₹50",
+              weight: 1,
               time: new Date().toLocaleTimeString()
             };
             setItems(prev => [newItem, ...prev].slice(0, 5));
@@ -259,16 +260,24 @@ function App() {
       {/* LEFT PANEL */}
       <aside className="stats-panel">
         {mode === 'kids' ? (
-          <div className="discovery-card">
+          <div>
             <h3>Explorer Stats</h3>
             <div className="stat-card">
-              <div className="stat-label">Items Found Today</div>
-              <div className="stat-value">12</div>
+              <div className="stat-label">Veggies Found Today</div>
+              <div className="stat-value">{items.length}</div>
             </div>
-            <div className="stat-card" style={{ background: '#FFF3E0' }}>
-              <div className="stat-label">Discovery Level</div>
-              <div className="stat-value" style={{ color: '#E65100' }}>Expert 🌟</div>
-            </div>
+            {currentDetection && (
+              <>
+                <div className="stat-card" style={{ background: '#E8F5E9' }}>
+                  <div className="stat-label">Natural Power</div>
+                  <div className="stat-value" style={{ color: '#2E7D32', fontSize: '1.2rem' }}>{details.calories || "Nutritious!"}</div>
+                </div>
+                <div className="stat-card" style={{ background: '#FFF3E0' }}>
+                  <div className="stat-label">Pro Tip</div>
+                  <div style={{ fontSize: '0.8rem', color: '#E65100', marginTop: '5px' }}>{dynamicInsight}</div>
+                </div>
+              </>
+            )}
           </div>
         ) : (
           <>

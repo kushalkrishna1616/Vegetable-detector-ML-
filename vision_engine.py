@@ -3,54 +3,9 @@ import numpy as np
 from ultralytics import YOLO
 import os
 import time
-from datetime import datetime
 
-# --- PREMIUM CONFIGURATION ---
-THEME_GOLD = (100, 215, 255)
-THEME_NEON = (57, 255, 20)
-THEME_SLATE = (45, 45, 45)
-
-# Mapping classes to their expected dominant colors (HSV Range)
-COLOR_MAP = {
-    "red": [((0, 70, 50), (10, 255, 255)), ((160, 70, 50), (180, 255, 255))],
-    "yellow": [((20, 100, 100), (35, 255, 255))],
-    "orange": [((10, 100, 100), (25, 255, 255))],
-    "green": [((35, 40, 40), (85, 255, 255))],
-}
-
-CLASS_COLORS = {
-    "apple": "red",
-    "tomato": "red",
-    "strawberry": "red",
-    "banana": "yellow",
-    "mango": "orange",
-    "lemon": "yellow",
-    "orange": "orange",
-    "broccoli": "green",
-    "cucumber": "green",
-    "cabbage": "green",
-    "zucchini": "green",
-    "bell pepper": "green",
-    "carrot": "orange",
-    "watermelon": "green",
-    "grape": "green",
-    "pear": "green",
-    "pomegranate": "red",
-    "peach": "orange",
-    "potato": "brown",
-    "mushroom": "white",
-    "pumpkin": "orange",
-}
-
-CLASS_REMAP = {
-    "goldfish": "carrot", 
-    "gold fish": "carrot",
-    "sports ball": "tomato",
-}
-
-# Visual Knowledge Base
-GALLERY_DIR = "gallery"
-
+# --- CONFIGURATION ---
+VEGETABLE_DIR = "vegetable"
 OBJECT_DATA = {
     # Fruit - 10
     "apple": {"type": "fruit", "calories": "52 kcal", "color": "Red/Green", "price": "₹150/kg", "insight": "Apples are rich in fiber and keep the heart healthy."},
@@ -78,100 +33,108 @@ OBJECT_DATA = {
     
     # Extra fallback
     "cauliflower": {"type": "vegetable", "calories": "25 kcal", "color": "White", "price": "₹40/pc", "insight": "High in fiber and Vitamin C."},
-    "lemon": {"type": "citrus", "calories": "29 kcal", "color": "Yellow", "price": "₹5/pc", "insight": "Aids digestion and detoxification."},
 }
+
+class VisualMemoryEngine:
+    """Matches live camera frames against images in the 'vegetable' folder."""
+    def __init__(self, gallery_path=VEGETABLE_DIR):
+        self.gallery_path = gallery_path
+        self.memory = {}
+        self.load_memory()
+
+    def load_memory(self):
+        if not os.path.exists(self.gallery_path):
+            os.makedirs(self.gallery_path)
+            return
+
+        print(f"[MEMORY] Learning from {self.gallery_path} folder...")
+        for file in os.listdir(self.gallery_path):
+            if file.lower().endswith(('.png', '.jpg', '.jpeg')):
+                img_path = os.path.join(self.gallery_path, file)
+                img = cv2.imread(img_path)
+                if img is not None:
+                    # Use color histogram as a visual signature
+                    hist = cv2.calcHist([cv2.cvtColor(img, cv2.COLOR_BGR2HSV)], [0, 1], None, [180, 256], [0, 180, 0, 256])
+                    cv2.normalize(hist, hist, 0, 1, cv2.NORM_MINMAX)
+                    # Name is filename without extension
+                    name = os.path.splitext(file)[0].lower()
+                    self.memory[name] = hist
+        print(f"[MEMORY] Loaded {len(self.memory)} custom visual signatures.")
+
+    def find_match(self, crop):
+        if not self.memory: return None
+        hsv_crop = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
+        crop_hist = cv2.calcHist([hsv_crop], [0, 1], None, [180, 256], [0, 180, 0, 256])
+        cv2.normalize(crop_hist, crop_hist, 0, 1, cv2.NORM_MINMAX)
+
+        best_score = 0
+        best_match = None
+
+        for name, sig_hist in self.memory.items():
+            score = cv2.compareHist(crop_hist, sig_hist, cv2.HISTCMP_CORREL)
+            if score > best_score:
+                best_score = score
+                best_match = name
+
+        return best_match if best_score > 0.85 else None
 
 class AdvancedVisionEngine:
     def __init__(self, model_path="yolov8n-oiv7.pt"): 
-        print(f"[SYSTEM] Initializing Premium Vision Engine ({model_path})...")
+        print(f"[SYSTEM] Initializing Vision Engine...")
         self.model = YOLO(model_path)
+        self.visual_memory = VisualMemoryEngine()
         self.last_item = "None"
         self.last_insight = "Ready to scan items."
         self.last_data = {}
-        self.knowledge_base = self._load_knowledge_base()
-
-    def _load_knowledge_base(self):
-        kb = {}
-        if os.path.exists(GALLERY_DIR):
-            for class_name in os.listdir(GALLERY_DIR):
-                class_path = os.path.join(GALLERY_DIR, class_name)
-                if os.path.isdir(class_path):
-                    kb[class_name.lower()] = len(os.listdir(class_path))
-        return kb
 
     def get_item_data(self, name):
-        return OBJECT_DATA.get(name.lower(), {"type": "unknown", "calories": "0", "color": "unknown", "price": "₹0", "insight": "Unknown item."})
-
-    def get_dominant_color(self, crop):
-        hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
-        results = {}
-        for color_name, ranges in COLOR_MAP.items():
-            mask = np.zeros(hsv.shape[:2], dtype=np.uint8)
-            for (lower, upper) in ranges:
-                mask = cv2.bitwise_or(mask, cv2.inRange(hsv, lower, upper))
-            results[color_name] = np.sum(mask > 0)
-        
-        dominant = max(results, key=results.get)
-        if results[dominant] < (crop.shape[0] * crop.shape[1] * 0.1):
-            return "unknown"
-        return dominant
-
-    def validate_detection(self, name, crop):
-        expected = CLASS_COLORS.get(name)
-        if not expected: return True
-        
-        dominant = self.get_dominant_color(crop)
-        # Fix common mis-classifications based on color
-        if expected == "red" and dominant == "yellow" and name == "tomato":
-            return "banana" # Switch
-        if expected == "yellow" and dominant == "red" and name == "banana":
-            return "tomato" # Switch
-            
-        return True # Soft validation for now to avoid missing detections
+        return OBJECT_DATA.get(name.lower(), {
+            "type": "Matched Item", 
+            "calories": "50 kcal", 
+            "color": "Natural", 
+            "price": "₹60/kg", 
+            "insight": "High quality item from your gallery!"
+        })
 
     def process_frame(self, frame):
-        # SENSITIVE MODE: HD(640), Sensitive(0.15)
+        # Sensitive mode for diverse environments
         results = self.model(frame, stream=True, conf=0.15, imgsz=640, verbose=False)
         detected_any = False
         
         for res in results:
             for box in res.boxes:
                 x1, y1, x2, y2 = map(int, box.xyxy[0])
-                conf = float(box.conf[0])
                 cls_name = self.model.names[int(box.cls[0])].lower()
                 
-                # RE-MAP certain things for accuracy
-                cls_name = CLASS_REMAP.get(cls_name, cls_name)
-
-                # STRICT WHITELIST: Only show what the user asked for
-                is_item = cls_name in OBJECT_DATA
-                is_context = cls_name in ["human face", "clothing"]
+                # Check visual memory first (User's folder)
+                crop = frame[max(0,y1):min(y2,480), max(0,x1):min(x2,640)]
+                memory_match = self.visual_memory.find_match(crop) if crop.size > 0 else None
                 
-                # EXPLICITLY SKIP 'MAN' AND 'WOMAN'
-                if cls_name in ["man", "woman"] or (not is_item and not is_context):
-                    continue
-
-                # Categories: Green for Items, Blue for Context
-                data = self.get_item_data(cls_name)
-                box_color = (0, 255, 0) if is_item else (235, 206, 135) 
+                final_name = memory_match if memory_match else cls_name
                 
-                cv2.rectangle(frame, (x1, y1), (x2, y2), box_color, 2)
-                label = f"{cls_name.upper()} {int(conf*100)}%"
-                cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, box_color, 2)
+                # STRICT GOAL MODE: Only show if it's a fruit/veg or memory match
+                is_known = final_name.lower() in OBJECT_DATA or memory_match
                 
-                if is_item:
-                    self.last_item = cls_name.capitalize()
+                if is_known:
+                    data = self.get_item_data(final_name)
+                    box_color = (0, 255, 0) # Clear Green
+                    
+                    cv2.rectangle(frame, (x1, y1), (x2, y2), box_color, 2)
+                    label = f"{final_name.upper()}"
+                    cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, box_color, 2)
+                    
+                    self.last_item = final_name.capitalize()
                     self.last_insight = data.get("insight")
                     self.last_data = data
                     detected_any = True
 
         if not detected_any:
             self.last_item = "None"
-            self.last_insight = "Scanning for items..."
+            self.last_insight = "Scanning items..."
             
-        cv2.rectangle(frame, (0, 0), (640, 40), THEME_SLATE, -1)
-        cv2.putText(frame, "VEGDETECTOR v8.0 / RELOADED / PAY_STATION", (20, 25), cv2.FONT_HERSHEY_TRIPLEX, 0.5, (100, 215, 255), 1)
+        # HUD Overlay (Minimalist)
+        cv2.rectangle(frame, (0, 0), (640, 40), (30, 30, 30), -1)
+        cv2.putText(frame, "VEGDETECTOR v8.0 / MEMORY_MATCH_ACTIVE", (20, 25), cv2.FONT_HERSHEY_TRIPLEX, 0.5, (100, 215, 255), 1)
         return frame
 
 engine = AdvancedVisionEngine()
-
