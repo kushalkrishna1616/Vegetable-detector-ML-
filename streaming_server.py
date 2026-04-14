@@ -32,11 +32,23 @@ def video_feed():
 
 @app.route('/status')
 def get_status():
+    item_name = engine.last_item
+    data = engine.get_item_data(item_name.lower())
+    learned = engine.knowledge_base.get(item_name.lower(), 0)
     return jsonify({
-        "last_item": engine.last_item,
+        "last_item": item_name,
         "last_insight": engine.last_insight,
-        "engine": "DeepMatch Hybrid v4.0"
+        "price": data.get("price", "₹0"),
+        "calories": data.get("calories", "0 kcal"),
+        "type": data.get("type", "Fresh"),
+        "color": data.get("color", "N/A"),
+        "learned_samples": learned,
+        "engine": "Kushalzz Premium Hybrid v5.0"
     })
+
+@app.route('/knowledge')
+def get_knowledge():
+    return jsonify(engine.knowledge_base)
 
 if __name__ == '__main__':
     print("[SERVER] Starting DeepMatch Multi-Brain Streamer on http://localhost:5000")

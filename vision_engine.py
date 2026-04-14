@@ -10,112 +10,168 @@ THEME_GOLD = (100, 215, 255)
 THEME_NEON = (57, 255, 20)
 THEME_SLATE = (45, 45, 45)
 
-# Visual Knowledge Base (User can drop any photo here to "Teach" the AI)
+# Mapping classes to their expected dominant colors (HSV Range)
+COLOR_MAP = {
+    "red": [((0, 70, 50), (10, 255, 255)), ((160, 70, 50), (180, 255, 255))],
+    "yellow": [((20, 100, 100), (35, 255, 255))],
+    "orange": [((10, 100, 100), (25, 255, 255))],
+    "green": [((35, 40, 40), (85, 255, 255))],
+}
+
+CLASS_COLORS = {
+    "apple": "red",
+    "tomato": "red",
+    "strawberry": "red",
+    "banana": "yellow",
+    "mango": "orange",
+    "lemon": "yellow",
+    "orange": "orange",
+    "broccoli": "green",
+    "cucumber": "green",
+    "cabbage": "green",
+    "zucchini": "green",
+    "bell pepper": "green",
+    "carrot": "orange",
+    "watermelon": "green",
+    "grape": "green",
+    "pear": "green",
+    "pomegranate": "red",
+    "peach": "orange",
+    "potato": "brown",
+    "mushroom": "white",
+    "pumpkin": "orange",
+}
+
+CLASS_REMAP = {
+    "goldfish": "carrot", 
+    "gold fish": "carrot",
+    "sports ball": "tomato",
+}
+
+# Visual Knowledge Base
 GALLERY_DIR = "gallery"
 
 OBJECT_DATA = {
-    "cauliflower": {"info": "Cruciferous", "price": "₹40/pc", "insight": "High in fiber and Vitamin C."},
-    "dragonfruit": {"info": "Tropical Pitaya", "price": "₹120/pc", "insight": "Rich in antioxidants and magnesium."},
-    "mango": {"info": "Alphonso", "price": "₹600/box", "insight": "Rich in Vitamin A."},
-    "tomato": {"info": "Vegetable", "price": "₹30/kg", "insight": "Packed with Lycopene."},
-    "strawberry": {"info": "Berries", "price": "₹100/pkt", "insight": "Low in calories, high in flavor."},
-    "banana": {"info": "Fruit", "price": "₹60/doz", "insight": "Great for energy and potassium."}
+    # Fruit - 10
+    "apple": {"type": "fruit", "calories": "52 kcal", "color": "Red/Green", "price": "₹150/kg", "insight": "Apples are rich in fiber and keep the heart healthy."},
+    "banana": {"type": "fruit", "calories": "89 kcal", "color": "Yellow", "price": "₹60/doz", "insight": "Great for energy and packed with potassium."},
+    "mango": {"type": "fruit", "calories": "60 kcal", "color": "Orange/Yellow", "price": "₹600/box", "insight": "The King of Fruits, loaded with Vitamin A."},
+    "orange": {"type": "fruit", "calories": "47 kcal", "color": "Orange", "price": "₹80/kg", "insight": "High in Vitamin C to boost your immunity."},
+    "strawberry": {"type": "fruit", "calories": "33 kcal", "color": "Red", "price": "₹100/pkt", "insight": "Berries are great for skin and brain health."},
+    "grape": {"type": "fruit", "calories": "69 kcal", "color": "Green/Purple", "price": "₹120/kg", "insight": "Contain antioxidants called polyphenols."},
+    "pear": {"type": "fruit", "calories": "57 kcal", "color": "Green", "price": "₹160/kg", "insight": "Highly nutritional and easy to digest."},
+    "pomegranate": {"type": "fruit", "calories": "83 kcal", "color": "Dark Red", "price": "₹200/kg", "insight": "Great for blood health and circulation."},
+    "watermelon": {"type": "fruit", "calories": "30 kcal", "color": "Green", "price": "₹40/kg", "insight": "92% water, perfect for hydration!"},
+    "peach": {"type": "fruit", "calories": "39 kcal", "color": "Peach/Orange", "price": "₹180/kg", "insight": "Contains Vitamin C and helps skin health."},
+
+    # Vegetables - 10
+    "broccoli": {"type": "vegetable", "calories": "34 kcal", "color": "Green", "price": "₹120/kg", "insight": "A superfood high in Vitamin K and fiber."},
+    "carrot": {"type": "vegetable", "calories": "41 kcal", "color": "Orange", "price": "₹40/kg", "insight": "Great for your eyes and overall vision."},
+    "tomato": {"type": "vegetable", "calories": "18 kcal", "color": "Red", "price": "₹30/kg", "insight": "Rich in Lycopene, great for skin health."},
+    "cucumber": {"type": "vegetable", "calories": "15 kcal", "color": "Green", "price": "₹40/kg", "insight": "Keeps you cool and hydrated."},
+    "potato": {"type": "vegetable", "calories": "77 kcal", "color": "Brown", "price": "₹25/kg", "insight": "An energy-rich staple food worldwide."},
+    "bell pepper": {"type": "vegetable", "calories": "31 kcal", "color": "Multi", "price": "₹80/kg", "insight": "Crunchy and rich in Vitamin C."},
+    "cabbage": {"type": "vegetable", "calories": "25 kcal", "color": "Green/Purple", "price": "₹30/pc", "insight": "Low in calories, high in vitamins."},
+    "zucchini": {"type": "vegetable", "calories": "17 kcal", "color": "Green", "price": "₹60/kg", "insight": "Great for weight loss and digestion."},
+    "mushroom": {"type": "vegetable", "calories": "22 kcal", "color": "White/Brown", "price": "₹50/pkt", "insight": "A great source of B vitamins and selenium."},
+    "pumpkin": {"type": "vegetable", "calories": "26 kcal", "color": "Orange", "price": "₹40/kg", "insight": "Rich in beta-carotene and antioxidants."},
+    
+    # Extra fallback
+    "cauliflower": {"type": "vegetable", "calories": "25 kcal", "color": "White", "price": "₹40/pc", "insight": "High in fiber and Vitamin C."},
+    "lemon": {"type": "citrus", "calories": "29 kcal", "color": "Yellow", "price": "₹5/pc", "insight": "Aids digestion and detoxification."},
 }
 
 class AdvancedVisionEngine:
-    def __init__(self, model_path="yolov8s-oiv7.pt"):
-        print("[SYSTEM] Initializing Multi-Brain Engine (CNN + Feature Matching)...")
+    def __init__(self, model_path="yolov8n-oiv7.pt"): 
+        print(f"[SYSTEM] Initializing Premium Vision Engine ({model_path})...")
         self.model = YOLO(model_path)
-        self.orb = cv2.ORB_create(nfeatures=500)
-        self.matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
-        self.gallery_features = {}
-        self.load_gallery()
         self.last_item = "None"
-        self.last_insight = "Scan anything (Fruits/Veg) for AI analysis."
+        self.last_insight = "Ready to scan items."
+        self.last_data = {}
+        self.knowledge_base = self._load_knowledge_base()
 
-    def load_gallery(self):
-        """Pre-load visual features of reference photos from the gallery folder."""
-        if not os.path.exists(GALLERY_DIR): return
-        for category in os.listdir(GALLERY_DIR):
-            cat_path = os.path.join(GALLERY_DIR, category)
-            if not os.path.isdir(cat_path): continue
+    def _load_knowledge_base(self):
+        kb = {}
+        if os.path.exists(GALLERY_DIR):
+            for class_name in os.listdir(GALLERY_DIR):
+                class_path = os.path.join(GALLERY_DIR, class_name)
+                if os.path.isdir(class_path):
+                    kb[class_name.lower()] = len(os.listdir(class_path))
+        return kb
+
+    def get_item_data(self, name):
+        return OBJECT_DATA.get(name.lower(), {"type": "unknown", "calories": "0", "color": "unknown", "price": "₹0", "insight": "Unknown item."})
+
+    def get_dominant_color(self, crop):
+        hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
+        results = {}
+        for color_name, ranges in COLOR_MAP.items():
+            mask = np.zeros(hsv.shape[:2], dtype=np.uint8)
+            for (lower, upper) in ranges:
+                mask = cv2.bitwise_or(mask, cv2.inRange(hsv, lower, upper))
+            results[color_name] = np.sum(mask > 0)
+        
+        dominant = max(results, key=results.get)
+        if results[dominant] < (crop.shape[0] * crop.shape[1] * 0.1):
+            return "unknown"
+        return dominant
+
+    def validate_detection(self, name, crop):
+        expected = CLASS_COLORS.get(name)
+        if not expected: return True
+        
+        dominant = self.get_dominant_color(crop)
+        # Fix common mis-classifications based on color
+        if expected == "red" and dominant == "yellow" and name == "tomato":
+            return "banana" # Switch
+        if expected == "yellow" and dominant == "red" and name == "banana":
+            return "tomato" # Switch
             
-            self.gallery_features[category] = []
-            for img_file in os.listdir(cat_path):
-                img_path = os.path.join(cat_path, img_file)
-                img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
-                if img is None: continue
-                # Resize for consistency
-                img = cv2.resize(img, (300, 300))
-                kp, des = self.orb.detectAndCompute(img, None)
-                if des is not None:
-                    self.gallery_features[category].append(des)
-        print(f"[GALLERY] Loaded {len(self.gallery_features)} reference categories.")
-
-    def match_item(self, crop):
-        """Compare a detected crop against the custom photo library."""
-        if not self.gallery_features: return None
-        gray_crop = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
-        gray_crop = cv2.resize(gray_crop, (300, 300))
-        kp_q, des_q = self.orb.detectAndCompute(gray_crop, None)
-        if des_q is None: return None
-
-        best_match = None
-        max_matches = 0
-        
-        for category, ref_descriptors in self.gallery_features.items():
-            for des_ref in ref_descriptors:
-                matches = self.matcher.match(des_q, des_ref)
-                good_matches = len([m for m in matches if m.distance < 50])
-                if good_matches > max_matches:
-                    max_matches = good_matches
-                    best_match = category
-        
-        return best_match if max_matches > 15 else None
-
-    def draw_hud(self, frame, status):
-        h, w, _ = frame.shape
-        cv2.rectangle(frame, (0, 0), (w, 50), THEME_SLATE, -1)
-        cv2.putText(frame, f"AI ENGINE: {status}", (20, 32), cv2.FONT_HERSHEY_TRIPLEX, 0.6, THEME_GOLD, 1)
+        return True # Soft validation for now to avoid missing detections
 
     def process_frame(self, frame):
-        results = self.model(frame, stream=True, conf=0.15, imgsz=416, verbose=False)
+        # SENSITIVE MODE: HD(640), Sensitive(0.15)
+        results = self.model(frame, stream=True, conf=0.15, imgsz=640, verbose=False)
         detected_any = False
         
         for res in results:
             for box in res.boxes:
                 x1, y1, x2, y2 = map(int, box.xyxy[0])
-                name = self.model.names[int(box.cls[0])].lower()
+                conf = float(box.conf[0])
+                cls_name = self.model.names[int(box.cls[0])].lower()
                 
-                # If it's a generic fruit/veg or something we track, try Deep Match
-                crop = frame[max(0, y1):y2, max(0, x1):x2]
-                if crop.size == 0: continue
+                # RE-MAP certain things for accuracy
+                cls_name = CLASS_REMAP.get(cls_name, cls_name)
+
+                # STRICT WHITELIST: Only show what the user asked for
+                is_item = cls_name in OBJECT_DATA
+                is_context = cls_name in ["human face", "clothing"]
                 
-                deep_name = self.match_item(crop)
-                final_name = deep_name if deep_name else name
-                
-                # Filter: We only care about fruits/veggies
-                if final_name not in OBJECT_DATA and "fruit" not in final_name and "vegetable" not in final_name:
+                # EXPLICITLY SKIP 'MAN' AND 'WOMAN'
+                if cls_name in ["man", "woman"] or (not is_item and not is_context):
                     continue
 
-                data = OBJECT_DATA.get(final_name, {"info": "Fresh", "price": "₹40/kg", "insight": f"Detected: {final_name.capitalize()}"})
+                # Categories: Green for Items, Blue for Context
+                data = self.get_item_data(cls_name)
+                box_color = (0, 255, 0) if is_item else (235, 206, 135) 
                 
-                # Drawing
-                color = THEME_NEON if deep_name else THEME_GOLD
-                cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-                lbl = f"{final_name.upper()} (DeepMatch)" if deep_name else final_name.upper()
-                cv2.putText(frame, lbl, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+                cv2.rectangle(frame, (x1, y1), (x2, y2), box_color, 2)
+                label = f"{cls_name.upper()} {int(conf*100)}%"
+                cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, box_color, 2)
                 
-                self.last_item = final_name.capitalize()
-                self.last_insight = data.get("insight")
-                detected_any = True
+                if is_item:
+                    self.last_item = cls_name.capitalize()
+                    self.last_insight = data.get("insight")
+                    self.last_data = data
+                    detected_any = True
 
         if not detected_any:
             self.last_item = "None"
-            self.last_insight = "Scanning for any Fruit or Vegetable..."
+            self.last_insight = "Scanning for items..."
             
-        self.draw_hud(frame, "HYBRID_SCANNER_ACTIVE")
+        cv2.rectangle(frame, (0, 0), (640, 40), THEME_SLATE, -1)
+        cv2.putText(frame, "VEGDETECTOR v8.0 / RELOADED / PAY_STATION", (20, 25), cv2.FONT_HERSHEY_TRIPLEX, 0.5, (100, 215, 255), 1)
         return frame
 
-# Update the global instance
 engine = AdvancedVisionEngine()
+
