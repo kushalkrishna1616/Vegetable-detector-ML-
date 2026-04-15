@@ -50,6 +50,26 @@ def get_status():
 def get_knowledge():
     return jsonify(engine.knowledge_base)
 
+@app.route('/debug')
+def debug_detections():
+    """Returns ALL raw YOLO detections with no filtering — for diagnosis."""
+    import cv2 as _cv2
+    cap = _cv2.VideoCapture(0)
+    ret, frame = cap.read()
+    cap.release()
+    if not ret:
+        return jsonify({"error": "Could not grab frame (camera busy?)"})
+    results = engine.model(frame, conf=0.03, verbose=False)
+    detections = []
+    for r in results:
+        for box in r.boxes:
+            detections.append({
+                "class": engine.model.names[int(box.cls[0])],
+                "conf": round(float(box.conf[0]), 3)
+            })
+    detections.sort(key=lambda x: x["conf"], reverse=True)
+    return jsonify({"total": len(detections), "detections": detections})
+
 if __name__ == '__main__':
     print("[SERVER] Starting DeepMatch Multi-Brain Streamer on http://localhost:5000")
     app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
